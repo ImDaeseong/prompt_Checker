@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>Prompt Checker</title>
+    <style>
+      :root {
+        --bg: #f5f6f8;
+        --panel: #ffffff;
+        --text: #1f2933;
+        --muted: #667085;
+        --line: #d9e0e8;
+        --accent: #216e6a;
+        --accent-dark: #174f4c;
+        --red: #dc2626;
+        --green: #16a34a;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        width: 100%;
+        min-width: 320px;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: 13px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+      }
+      header h1 { font-size: 15px; }
+      header p  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+      .tab-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .tab-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: #d1d5db;
+        flex-shrink: 0;
+      }
+      .tab-dot.chatgpt { background: #10a37f; }
+      .tab-dot.gemini  { background: #4285f4; }
+      .tab-dot.none    { background: var(--red); }
+
+      main { padding: 12px; display: grid; gap: 10px; }
+
+      .notice {
+        font-size: 12px;
+        color: #92400e;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 6px;
+        padding: 8px 12px;
+        line-height: 1.6;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .field-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 4px;
+      }
+      .field-label span {
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: 0;
+        color: #aab;
+        margin-left: 4px;
+      }
+
+      textarea, button, select { font: inherit; }
+
+      textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+        padding: 8px 10px;
+        line-height: 1.6;
+        resize: vertical;
+      }
+      textarea:focus { outline: none; border-color: var(--accent); }
+
+      #promptInput   { min-height: 130px; }
+      #questionInput { min-height: 70px; }
+      #expectedInput { min-height: 60px; }
+      #resultBox     { min-height: 240px; background: #f8fafc; }
+
+      .runbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      select {
+        min-height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+        padding: 0 8px;
+      }
+
+      button {
+        min-height: 34px;
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        background: var(--accent);
+        color: #fff;
+        padding: 0 14px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button:hover:not(:disabled) { background: var(--accent-dark); }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+      button.secondary {
+        background: #fff;
+        color: var(--accent);
+      }
+      button.secondary:hover:not(:disabled) {
+        background: #f0faf9;
+        border-color: var(--accent-dark);
+        color: var(--accent-dark);
+      }
+
+      .spinner {
+        display: none;
+        width: 14px; height: 14px;
+        border: 2px solid var(--line);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .msg { font-size: 12px; }
+      .msg.ok  { color: var(--green); }
+      .msg.err { color: var(--red); }
+
+      .result-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .result-header h2 {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Prompt Checker</h1>
+        <p>프롬프트 개선 · 교체 권장 여부 판단</p>
+      </div>
+      <div class="tab-bar">
+        <span class="tab-dot" id="tabDot"></span>
+        <span id="tabLabel">탭 확인 중...</span>
+      </div>
+    </header>
+
+    <main>
+      <div class="notice" id="notice" style="display:none">
+        ChatGPT 또는 Gemini 탭을 열고 <strong>새로고침</strong> 후 다시 시도하세요.
+      </div>
+
+      <section class="panel">
+        <div>
+          <div class="field-label">내가 만든 프롬프트</div>
+          <textarea id="promptInput" spellcheck="false" placeholder="평가받을 프롬프트를 입력하세요."></textarea>
+        </div>
+        <div>
+          <div class="field-label">테스트 질문</div>
+          <textarea id="questionInput" placeholder="이 프롬프트로 테스트할 질문을 입력하세요."></textarea>
+        </div>
+        <div>
+          <div class="field-label">개선 방향 <span>선택사항 — 원하는 방향을 지정하면 더 정확히 개선됩니다</span></div>
+          <textarea id="expectedInput" placeholder="예: 항상 3줄 이내로 답변, 친절한 말투 유지, 코드 예시 포함"></textarea>
+        </div>
+        <div class="runbar">
+          <select id="targetSel">
+            <option value="chatgpt">ChatGPT</option>
+            <option value="gemini">Gemini</option>
+          </select>
+          <button id="testBtn">테스트 + 평가 실행</button>
+          <span class="spinner" id="spinner"></span>
+          <span class="msg" id="runMsg"></span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="result-header">
+          <h2>교체 권장 여부 + 개선된 프롬프트</h2>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="msg" id="resultMeta"></span>
+            <button id="updateBtn" class="secondary" disabled>업데이트</button>
+          </div>
+        </div>
+        <textarea id="resultBox" readonly placeholder="실행 후 결과가 자동으로 표시됩니다.&#10;&#10;교체 권장: 예/아니오&#10;이유: ...&#10;&#10;---&#10;&#10;[개선된 프롬프트]&#10;..."></textarea>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
